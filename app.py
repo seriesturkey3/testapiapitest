@@ -2,17 +2,12 @@ import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Your Steam Storefront API key
-STEAM_API_KEY = 'YOUR_STEAM_API_KEY'
-
 # Your Telegram Bot Token
-TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+TELEGRAM_BOT_TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
 # Function to fetch discounted games
 def get_discounted_games():
-    url = (
-        "https://store.steampowered.com/api/featured/?cc=us&l=english&v=1"
-    )
+    url = "https://store.steampowered.com/api/featured/?cc=us&l=english&v=1"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -32,7 +27,6 @@ def get_discounted_games():
 def check_the_forest_deal():
     deals = get_discounted_games()
     for deal in deals:
-        # Deal structure may vary; adapt as needed
         title = deal.get('title', '')
         sale_price = deal.get('salePrice', '')
         normal_price = deal.get('normalPrice', '')
