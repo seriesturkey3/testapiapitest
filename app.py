@@ -1,5 +1,6 @@
 import requests
 import asyncio
+import random
 from telegram import Bot
 from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
@@ -114,17 +115,26 @@ async def periodic_check():
 
 # Main function to run the bot and schedule checks
 def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    # Register handler for new users
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
-
-    # Run bot and periodic task concurrently
     async def run():
+        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+        # Initialize the app (important in v20+)
+        await app.initialize()
+
+        # Register message handler
+        app.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+        )
+
+        # Start the bot
         await app.start()
+
+        # Run the periodic check concurrently
         await periodic_check()
+
+        # Keep the bot running
+        await app.updater.start_polling()
+        await app.updater.idle()
 
     asyncio.run(run())
 
