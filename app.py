@@ -20,10 +20,7 @@ async def ip_command(update, context):
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler('ip', ip_command))
-    await app.start()
-    await app.updater.start_polling()
-    # Keep the bot running until interrupted
-    await asyncio.Event().wait()
+    await app.run_polling()
 
 if __name__ == '__main__':
     asyncio.run(main())
