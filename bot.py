@@ -12,8 +12,6 @@ dp = Dispatcher(bot)
 
 # Store active games: key = game_id, value = game data
 games = {}
-# For simplicity, game_id can be a string combining user IDs
-# Example: "user1id_user2id"
 
 def create_board():
     return [' ' for _ in range(9)]  # 3x3 board flattened
@@ -32,13 +30,12 @@ def get_board_markup(board):
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 def check_winner(board):
-    # Winning combinations
     wins = [
-        (0,1,2), (3,4,5), (6,7,8),  # rows
-        (0,3,6), (1,4,7), (2,5,8),  # columns
-        (0,4,8), (2,4,6)            # diagonals
+        (0,1,2), (3,4,5), (6,7,8),
+        (0,3,6), (1,4,7), (2,5,8),
+        (0,4,8), (2,4,6)
     ]
-    for a,b,c in wins:
+    for a, b, c in wins:
         if board[a] == board[b] == board[c] != ' ':
             return board[a]
     if ' ' not in board:
@@ -55,16 +52,11 @@ async def challenge_command(message: types.Message):
         await message.answer("Usage: /challenge @username")
         return
     username = message.get_args().strip()
-    # Find user by username (Note: requires user to have interacted with bot before)
-    # For simplicity, assume the challenger and challenged are available
-    # In real implementation, you'd handle user identification properly
-    # Here, just store the challenge info
     challenged_user = username.replace('@', '')
     challenger_id = message.from_user.id
-    challenged_id = None  # Placeholder: you'd need to resolve username to user_id
-    # For demo purposes, we'll assume challenged_user is known or skip user lookup
-    # Instead, we can let the challenged user initiate game via command
-    await message.answer(f"Challenge sent to {username}! Now, {username} can accept with /accept {challenger_id}")
+    # Note: Resolving username to user_id is not straightforward without prior interaction
+    # For simplicity, you can ask the challenged user to use /accept with challenger ID
+    await message.answer(f"Challenge sent to {username}! {username} can accept with /accept {challenger_id}")
 
 @dp.message_handler(commands=['accept'])
 async def accept_command(message: types.Message):
@@ -78,7 +70,7 @@ async def accept_command(message: types.Message):
         'player_x': challenger_id,
         'player_o': challenged_id,
         'board': board,
-        'turn': 'X'  # X starts
+        'turn': 'X'
     }
 
     # Send initial game board
@@ -101,9 +93,9 @@ async def handle_move(callback_query: types.CallbackQuery):
         return
 
     game = games[game_id]
-    current_player = game['player_x'] if game['turn'] == 'X' else game['player_o']
+    current_player_id = game['player_x'] if game['turn'] == 'X' else game['player_o']
 
-    if user_id != current_player:
+    if user_id != current_player_id:
         await callback_query.answer("It's not your turn.")
         return
 
@@ -115,24 +107,19 @@ async def handle_move(callback_query: types.CallbackQuery):
     game['board'][move_index] = game['turn']
     winner = check_winner(game['board'])
     if winner:
-        # End game
         if winner == 'Draw':
             msg = "It's a draw!"
         else:
             winner_id = game['player_x'] if winner == 'X' else game['player_o']
             msg = f"Player {winner} wins!"
-        # Notify players
         await bot.send_message(game['player_x'], msg)
         await bot.send_message(game['player_o'], msg)
-        # Remove game
         del games[game_id]
     else:
         # Switch turn
         game['turn'] = 'O' if game['turn'] == 'X' else 'X'
-        # Update board for both players
         for player_id in [game['player_x'], game['player_o']]:
-            await bot.send_message(player_id, "Your turn." if player_id == current_player else "Waiting for opponent.", reply_markup=get_board_markup(game['board']))
-
+            await bot.send_message(player_id, "Your turn." if player_id == game['player_x'] else "Waiting for opponent.", reply_markup=get_board_markup(game['board']))
     await callback_query.answer()
 
 if __name__ == '__main__':
