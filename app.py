@@ -133,7 +133,7 @@ def main():
     )
 
     # Schedule periodic check after startup
-    async def on_start():
+    async def on_start(application):
         asyncio.create_task(periodic_check())
 
     app.post_init = on_start
