@@ -1,17 +1,17 @@
 import requests
-import random
+import asyncio
 from telegram import Bot
 from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
 # Your Telegram bot token
 TELEGRAM_TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
-# File to store chat IDs
+# Files for storing chat IDs and notified deals
 CHAT_IDS_FILE = 'chat_ids.txt'
+NOTIFIED_DEALS_FILE = 'notified_deals.txt'
 
-# Initialize bot instance
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# Load chat IDs from file
+# Load chat IDs
 def load_chat_ids():
     try:
         with open(CHAT_IDS_FILE, 'r') as f:
@@ -20,14 +20,28 @@ def load_chat_ids():
     except FileNotFoundError:
         return []
 
-# Save a new chat ID
+# Save chat ID
 def save_chat_id(chat_id):
     chat_ids = load_chat_ids()
     if chat_id not in chat_ids:
         with open(CHAT_IDS_FILE, 'a') as f:
             f.write(str(chat_id) + '\n')
 
-# Handler for incoming messages to register users
+# Load notified deals
+def load_notified_deals():
+    try:
+        with open(NOTIFIED_DEALS_FILE, 'r') as f:
+            deals = {line.strip() for line in f}
+        return deals
+    except FileNotFoundError:
+        return set()
+
+# Save a deal ID as notified
+def save_notified_deal(deal_id):
+    with open(NOTIFIED_DEALS_FILE, 'a') as f:
+        f.write(str(deal_id) + '\n')
+
+# Telegram message handler for new users
 async def handle_message(update, context):
     chat_id = str(update.message.chat_id)
     save_chat_id(chat_id)
@@ -53,8 +67,8 @@ def get_discounted_games():
         print(f"Error: {e}")
         return []
 
-# Broadcast deals to all registered users
-def broadcast_deal():
+# Check for new deals and notify
+def check_and_notify():
     chat_ids = load_chat_ids()
     if not chat_ids:
         print("No users registered.")
@@ -63,37 +77,56 @@ def broadcast_deal():
     if not deals:
         print("No deals found.")
         return
-    # Filter for deals with savings >= 50%
-    discounted_games = [deal for deal in deals if float(deal['savings']) >= 50]
-    if not discounted_games:
-        print("No discounted games with ≥50% off.")
+
+    notified_deals = load_notified_deals()
+    # Filter out already notified deals
+    new_deals = [deal for deal in deals if deal['dealID'] not in notified_deals]
+
+    if not new_deals:
+        print("No new deals to notify.")
         return
-    game = random.choice(discounted_games)
+
+    # Select a random deal
+    deal = random.choice(new_deals)
+    deal_id = deal['dealID']
+    save_notified_deal(deal_id)
+
     message = (
-        f"🔥 **Steam Discount!** 🔥\n"
-        f"Title: {game['title']}\n"
-        f"Price: ${game['salePrice']}\n"
-        f"Discount: {game['savings']}%\n"
-        f"Link: https://store.steampowered.com/app/{game['steamAppID']}"
+        f"🔥 **Steam Deal!** 🔥\n"
+        f"Title: {deal['title']}\n"
+        f"Price: ${deal['salePrice']}\n"
+        f"Discount: {deal['savings']}%\n"
+        f"Link: https://store.steampowered.com/app/{deal['steamAppID']}"
     )
+
     for chat_id in chat_ids:
         try:
             bot.send_message(int(chat_id), message, parse_mode='Markdown')
         except Exception as e:
             print(f"Failed to send to {chat_id}: {e}")
 
-# Main function to run the bot
+# Periodic task: check deals every 30 minutes
+async def periodic_check():
+    while True:
+        print("Checking for new deals...")
+        check_and_notify()
+        await asyncio.sleep(1800)  # 30 minutes
+
+# Main function to run the bot and schedule checks
 def main():
-    # Build the application
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    # Register message handler
+    # Register handler for new users
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
 
-    # Run the bot
-    app.run_polling()
+    # Run bot and periodic task concurrently
+    async def run():
+        await app.start()
+        await periodic_check()
+
+    asyncio.run(run())
 
 if __name__ == '__main__':
     main()
