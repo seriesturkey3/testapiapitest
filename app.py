@@ -1,31 +1,27 @@
-import threading
 import asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler
+import aiohttp
 
 TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
-def run_bot():
-    # Create a new event loop for this thread
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    # Build and run the bot
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler('ip', ip_command))
-    app.run_polling()
-
 async def ip_command(update, context):
-    import requests
     try:
-        response = requests.get('https://api.ipify.org?format=json')
-        if response.status_code == 200:
-            ip = response.json()['ip']
-        else:
-            ip = "Unable to fetch IP."
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://api.ipify.org?format=json') as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    ip = data['ip']
+                else:
+                    ip = "Unable to fetch IP."
     except Exception as e:
         ip = f"Error: {e}"
     await update.message.reply_text(f"Your public IP address is: {ip}")
 
-# Example usage with threading
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler('ip', ip_command))
+    print("Bot is polling...")
+    app.run_polling()
+
 if __name__ == '__main__':
-    threading.Thread(target=run_bot, daemon=True).start()
-    # Your Streamlit or other code here
+    main()
