@@ -1,33 +1,71 @@
 import requests
 import random
 from telegram import Bot
+from telegram.ext import Updater, MessageHandler, Filters
 
-# Your Telegram bot token and chat ID
+# Your Telegram bot token
 TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
-CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
+# File to store chat IDs
+CHAT_IDS_FILE = 'chat_ids.txt'
 
 bot = Bot(token=TELEGRAM_TOKEN)
 
+# Load chat IDs
+def load_chat_ids():
+    try:
+        with open(CHAT_IDS_FILE, 'r') as f:
+            ids = [line.strip() for line in f if line.strip().isdigit()]
+        return ids
+    except FileNotFoundError:
+        return []
+
+# Save a new chat ID
+def save_chat_id(chat_id):
+    chat_ids = load_chat_ids()
+    if chat_id not in chat_ids:
+        with open(CHAT_IDS_FILE, 'a') as f:
+            f.write(str(chat_id) + '\n')
+
+# Handler for new messages to register users
+def handle_message(update, context):
+    chat_id = str(update.message.chat_id)
+    save_chat_id(chat_id)
+    update.message.reply_text("Thanks! You'll now receive deals.")
+
+# Fetch deals from API
 def get_discounted_games():
-    # Fetch deals with at least 50% off, for example
-    response = requests.get('https://www.cheapshark.com/api/1.0/deals', params={
-        'storeID': 1,          # Steam store
-        'upperPrice': 60,      # Max price
+    url = 'https://www.cheapshark.com/api/1.0/deals'
+    params = {
+        'storeID': 1,
+        'upperPrice': 60,
         'sortBy': 'DealRating',
         'desc': 1,
         'pageSize': 50
-    })
-    deals = response.json()
-    # Filter deals with significant discounts
-    discounted_games = [deal for deal in deals if float(deal['savings']) >= 50]
-    return discounted_games
+    }
+    try:
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            print(f"Error fetching deals: {response.status_code}")
+            return []
+        return response.json()
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
 
-def send_random_discount_game():
-    discounted_games = get_discounted_games()
-    if not discounted_games:
-        print("No discounted games found.")
+# Broadcast deals to all registered users
+def broadcast_deal():
+    chat_ids = load_chat_ids()
+    if not chat_ids:
+        print("No users registered.")
         return
-
+    deals = get_discounted_games()
+    if not deals:
+        print("No deals found.")
+        return
+    discounted_games = [deal for deal in deals if float(deal['savings']) >= 50]
+    if not discounted_games:
+        print("No discounted games with ≥50% off.")
+        return
     game = random.choice(discounted_games)
     message = (
         f"🔥 **Steam Discount!** 🔥\n"
@@ -36,7 +74,21 @@ def send_random_discount_game():
         f"Discount: {game['savings']}%\n"
         f"Link: https://store.steampowered.com/app/{game['steamAppID']}"
     )
-    bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='Markdown')
+    for chat_id in chat_ids:
+        try:
+            bot.send_message(int(chat_id), message, parse_mode='Markdown')
+        except Exception as e:
+            print(f"Failed to send to {chat_id}: {e}")
 
 if __name__ == '__main__':
-    send_random_discount_game()
+    # Set up Telegram bot
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    updater.start_polling()
+
+    # You can call broadcast_deal() whenever you want to send deals
+    # For example, after some interval, or manually:
+    # broadcast_deal()
+
+    updater.idle()
