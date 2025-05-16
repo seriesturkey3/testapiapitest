@@ -1,31 +1,46 @@
-import streamlit as st
+import threading
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
 import requests
 
-st.title("Proxy Checker")
+TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
-# Input field for proxy address
-proxy_input = st.text_input("Enter proxy (ip:port):", "")
+def check_proxy(proxy):
+    if ':' not in proxy:
+        return "Invalid format. Use ip:port."
+    ip, port = proxy.split(':', 1)
+    proxies = {
+        "http": f"http://{ip}:{port}",
+        "https": f"http://{ip}:{port}"
+    }
+    test_url = "http://httpbin.org/ip"
+    try:
+        response = requests.get(test_url, proxies=proxies, timeout=5)
+        if response.status_code == 200:
+            origin_ip = response.json().get('origin', 'Unknown')
+            return f"Proxy {proxy} is working! Your IP as seen: {origin_ip}"
+        else:
+            return f"Proxy {proxy} returned status code {response.status_code}."
+    except Exception as e:
+        return f"Proxy {proxy} is not working. Error: {e}"
 
-# Button to trigger the check
-if st.button("Check Proxy"):
-    # Basic validation of input
-    if ':' not in proxy_input:
-        st.error("Please enter the proxy in the correct format: ip:port")
-    else:
-        ip, port = proxy_input.split(':', 1)
-        proxies = {
-            "http": f"http://{ip}:{port}",
-            "https": f"http://{ip}:{port}"
-        }
-        test_url = "http://httpbin.org/ip"
+def check_command(update: Update, context: CallbackContext):
+    if len(context.args) != 1:
+        update.message.reply_text("Usage: /check ip:port")
+        return
+    proxy = context.args[0]
+    result = check_proxy(proxy)
+    update.message.reply_text(result)
 
-        with st.spinner("Checking proxy..."):
-            try:
-                response = requests.get(test_url, proxies=proxies, timeout=5)
-                if response.status_code == 200:
-                    origin_ip = response.json().get('origin', 'Unknown')
-                    st.success(f"✅ Proxy {proxy_input} is working!\nYour IP as seen by the test server: {origin_ip}")
-                else:
-                    st.error(f"❌ Proxy {proxy_input} returned status code {response.status_code}. Might not be working.")
-            except requests.RequestException as e:
-                st.error(f"❌ Proxy {proxy_input} is not working. Error: {e}")
+def main():
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("check", check_command))
+
+    # Run bot in a separate thread so it doesn't block other code
+    threading.Thread(target=updater.start_polling).start()
+
+if __name__ == '__main__':
+    main()
+    # You can run your Streamlit app or other code here
