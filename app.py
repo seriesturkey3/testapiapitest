@@ -1,7 +1,7 @@
 import requests
 import random
 from telegram import Bot
-from telegram.ext import Updater, MessageHandler, Filters
+from telegram.ext import Updater, MessageHandler, filters
 
 # Your Telegram bot token
 TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
@@ -10,7 +10,7 @@ CHAT_IDS_FILE = 'chat_ids.txt'
 
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# Load chat IDs
+# Load chat IDs from file
 def load_chat_ids():
     try:
         with open(CHAT_IDS_FILE, 'r') as f:
@@ -26,7 +26,7 @@ def save_chat_id(chat_id):
         with open(CHAT_IDS_FILE, 'a') as f:
             f.write(str(chat_id) + '\n')
 
-# Handler for new messages to register users
+# Handler for incoming messages to register users
 def handle_message(update, context):
     chat_id = str(update.message.chat_id)
     save_chat_id(chat_id)
@@ -62,6 +62,7 @@ def broadcast_deal():
     if not deals:
         print("No deals found.")
         return
+    # Filter for deals with savings >= 50%
     discounted_games = [deal for deal in deals if float(deal['savings']) >= 50]
     if not discounted_games:
         print("No discounted games with ≥50% off.")
@@ -80,11 +81,17 @@ def broadcast_deal():
         except Exception as e:
             print(f"Failed to send to {chat_id}: {e}")
 
-if __name__ == '__main__':
-    # Set up Telegram bot
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+def main():
+    # Initialize updater and dispatcher
+    updater = Updater(TELEGRAM_TOKEN)
+    dispatcher = updater.dispatcher
+
+    # Add message handler with updated filters
+    dispatcher.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
+
+    # Start polling
     updater.start_polling()
 
     # You can call broadcast_deal() whenever you want to send deals
@@ -92,3 +99,6 @@ if __name__ == '__main__':
     # broadcast_deal()
 
     updater.idle()
+
+if __name__ == '__main__':
+    main()
