@@ -201,14 +201,14 @@ async def button(update: 'Update', context: 'ContextTypes.DEFAULT_TYPE'):
     await query.answer()
 
 # Main async function to run the bot
-async def main():
+def main():
     application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('score', score))
     application.add_handler(CommandHandler('newgame', newgame))
     application.add_handler(CallbackQueryHandler(button))
     print("Bot is running...")
-    await application.run_polling()
+    application.run_polling()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
