@@ -1,44 +1,43 @@
 import logging
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Configure logging
+# Set up logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Замените на ваш токен
-TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
+# Your bot token
+TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN_HERE'  # <-- Put your bot token here
 
-# Храним игры по chat_id
+# Store game states
 games = {}
 
 def create_board():
     return [[' ' for _ in range(3)] for _ in range(3)]
 
 def board_to_markup(board):
-    markup = []
+    keyboard = []
     for i in range(3):
         row = []
         for j in range(3):
-            cell = board[i][j]
-            text = cell if cell != ' ' else ' '
-            row.append(InlineKeyboardButton(text, callback_data=f'{i},{j}'))
-        markup.append(row)
-    return InlineKeyboardMarkup(markup)
+            cell_text = board[i][j] if board[i][j] != ' ' else ' '
+            row.append(InlineKeyboardButton(cell_text, callback_data=f'{i},{j}'))
+        keyboard.append(row)
+    return InlineKeyboardMarkup(keyboard)
 
 def check_winner(board):
     lines = []
 
-    # Проверка строк и столбцов
+    # Rows and columns
     for i in range(3):
-        lines.append(board[i])  # строка
-        lines.append([board[0][i], board[1][i], board[2][i]])  # столбец
+        lines.append(board[i])  # rows
+        lines.append([board[0][i], board[1][i], board[2][i]])  # columns
 
-    # Диагонали
+    # Diagonals
     lines.append([board[0][0], board[1][1], board[2][2]])
     lines.append([board[0][2], board[1][1], board[2][0]])
 
@@ -58,12 +57,12 @@ async def start(update: Update, context):
         reply_markup=board_to_markup(games[chat_id]['board'])
     )
 
-async def button(update, context):
+async def handle_button(update, context):
     query = update.callback_query
-    chat_id = query.message.chat_id
+    chat_id = query.message.chat.id
 
     if chat_id not in games:
-        await query.answer("Start a game with /start")
+        await query.answer("Game not found. Start a new game with /start.")
         return
 
     game = games[chat_id]
@@ -74,58 +73,57 @@ async def button(update, context):
         await query.answer("Cell already taken!")
         return
 
-    # Ход пользователя
+    # Player move
     board[i][j] = 'X'
 
-    # Проверка победы
+    # Check for player win
     winner = check_winner(board)
     if winner:
-        await query.edit_message_text(f"🎉 You win!", reply_markup=None)
+        await query.edit_message_text("🎉 You win!", reply_markup=None)
         del games[chat_id]
         return
 
-    # Проверка ничьей
+    # Check for draw
     if is_draw(board):
         await query.edit_message_text("It's a draw!", reply_markup=None)
         del games[chat_id]
         return
 
-    # Ход бота
+    # Bot's turn
     empty_cells = [(x, y) for x in range(3) for y in range(3) if board[x][y] == ' ']
     if empty_cells:
         x, y = random.choice(empty_cells)
         board[x][y] = 'O'
-        # Проверка победы бота
+
+        # Check if bot wins
         winner = check_winner(board)
         if winner:
-            await query.edit_message_text(f"🤖 Bot wins!", reply_markup=None)
+            await query.edit_message_text("🤖 Bot wins!", reply_markup=None)
             del games[chat_id]
             return
-        # Проверка ничьей
+
+        # Check for draw
         if is_draw(board):
             await query.edit_message_text("It's a draw!", reply_markup=None)
             del games[chat_id]
             return
 
-    # Продолжение
+    # Continue game
     await query.edit_message_text("Your turn!", reply_markup=board_to_markup(board))
     await query.answer()
 
-async def help_command(update, context):
+async def help_command(update: Update, context):
     await update.message.reply_text(
-        "/start - Начать новую игру\n"
-        "Используйте кнопки, чтобы сделать ход."
+        "/start - start a new game\n"
+        "Use the buttons to make your moves."
     )
 
 def main():
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CallbackQueryHandler(button))
-
-    # Запуск бота
-    application.run_polling()
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CallbackQueryHandler(handle_button))
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
