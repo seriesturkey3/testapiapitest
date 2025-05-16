@@ -1,11 +1,15 @@
 import threading
+import asyncio
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import requests
 
 TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
-def check_proxy(proxy):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hello! I'm your proxy checker bot.")
+
+async def check_proxy(proxy):
     if ':' not in proxy:
         return "Invalid format. Use ip:port."
     ip, port = proxy.split(':', 1)
@@ -24,23 +28,26 @@ def check_proxy(proxy):
     except Exception as e:
         return f"Proxy {proxy} is not working. Error: {e}"
 
-def check_command(update: Update, context: CallbackContext):
+async def check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) != 1:
-        update.message.reply_text("Usage: /check ip:port")
+        await update.message.reply_text("Usage: /check ip:port")
         return
     proxy = context.args[0]
-    result = check_proxy(proxy)
-    update.message.reply_text(result)
+    result = await check_proxy(proxy)
+    await update.message.reply_text(result)
 
 def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    # Build and run the bot
+    application = ApplicationBuilder().token(TOKEN).build()
 
-    dp.add_handler(CommandHandler("check", check_command))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("check", check))
 
-    # Run bot in a separate thread so it doesn't block other code
-    threading.Thread(target=updater.start_polling).start()
+    # Run the bot in a separate thread to avoid blocking
+    def run():
+        application.run_polling()
+
+    threading.Thread(target=run).start()
 
 if __name__ == '__main__':
     main()
-    # You can run your Streamlit app or other code here
