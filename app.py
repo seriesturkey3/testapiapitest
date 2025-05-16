@@ -1,82 +1,42 @@
-import threading
-from flask import Flask, request, jsonify
-from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import requests
-import os
+import random
+from telegram import Bot
 
-# --- Configuration ---
-TELEGRAM_TOKEN = os.getenv('7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I')  # Set your bot token as environment variable
-API_PORT = int(os.getenv('API_PORT', 5000))  # Port for Flask API
+# Your Telegram bot token and chat ID
+TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
 
-# --- Proxy Checking Function ---
-def check_proxy(proxy: str) -> dict:
-    """
-    Checks if the proxy is working.
-    Returns a dict with status and message.
-    """
-    if ':' not in proxy:
-        return {'status': 'error', 'message': 'Invalid format. Use ip:port.'}
-    ip, port = proxy.split(':', 1)
-    proxies = {
-        "http": f"http://{ip}:{port}",
-        "https": f"http://{ip}:{port}"
-    }
-    test_url = "http://httpbin.org/ip"
-    try:
-        response = requests.get(test_url, proxies=proxies, timeout=5)
-        if response.status_code == 200:
-            origin_ip = response.json().get('origin', 'Unknown')
-            return {'status': 'success', 'message': f'Proxy {proxy} is working! Your IP as seen: {origin_ip}'}
-        else:
-            return {'status': 'fail', 'message': f'Proxy {proxy} returned status code {response.status_code}.'}
-    except Exception as e:
-        return {'status': 'fail', 'message': f'Proxy {proxy} failed. Error: {str(e)}'}
+bot = Bot(token=TELEGRAM_TOKEN)
 
-# --- Flask API for external proxy checks ---
-app = Flask(__name__)
+def get_discounted_games():
+    # Fetch deals with at least 50% off, for example
+    response = requests.get('https://www.cheapshark.com/api/1.0/deals', params={
+        'storeID': 1,          # Steam store
+        'upperPrice': 60,      # Max price
+        'sortBy': 'DealRating',
+        'desc': 1,
+        'pageSize': 50
+    })
+    deals = response.json()
+    # Filter deals with significant discounts
+    discounted_games = [deal for deal in deals if float(deal['savings']) >= 50]
+    return discounted_games
 
-@app.route('/api/check_proxy', methods=['POST'])
-def api_check_proxy():
-    data = request.json
-    proxy = data.get('proxy')
-    if not proxy:
-        return jsonify({'status': 'error', 'message': 'Missing proxy parameter.'}), 400
-    result = check_proxy(proxy)
-    return jsonify(result)
-
-def run_flask():
-    app.run(host='0.0.0.0', port=API_PORT)
-
-# --- Telegram Bot Handlers ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Hello! I'm Proxy Checker Bot.\n"
-        "Use /check <ip:port> to test a proxy."
-    )
-
-async def check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Please provide a proxy in format ip:port.\nExample: /check 123.45.67.89:8080")
+def send_random_discount_game():
+    discounted_games = get_discounted_games()
+    if not discounted_games:
+        print("No discounted games found.")
         return
-    proxy = context.args[0]
-    result = check_proxy(proxy)
-    await update.message.reply_text(result['message'])
 
-# --- Main function ---
-def main():
-    # Start Flask API in a separate thread
-    threading.Thread(target=run_flask, daemon=True).start()
-
-    # Initialize Telegram bot
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    # Register handlers
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('check', check))
-
-    # Run bot
-    application.run_polling()
+    game = random.choice(discounted_games)
+    message = (
+        f"🔥 **Steam Discount!** 🔥\n"
+        f"Title: {game['title']}\n"
+        f"Price: ${game['salePrice']}\n"
+        f"Discount: {game['savings']}%\n"
+        f"Link: https://store.steampowered.com/app/{game['steamAppID']}"
+    )
+    bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='Markdown')
 
 if __name__ == '__main__':
-    main()
+    send_random_discount_game()
