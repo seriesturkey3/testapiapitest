@@ -1,9 +1,8 @@
 import asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import requests
 
-# Replace with your actual bot token
+# Replace with your token
 TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -37,14 +36,17 @@ async def check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(result)
 
 def main():
-    # Create and set the event loop explicitly
+    # Create the event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
+    # Build the application
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("check", check))
-    app.run_polling()
+
+    # Run polling without setting signal handlers
+    app.run_polling(close_loop=False)
 
 if __name__ == '__main__':
     main()
