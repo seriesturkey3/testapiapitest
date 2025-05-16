@@ -1,7 +1,7 @@
 import requests
 import random
 from telegram import Bot
-from telegram.ext import Updater, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
 # Your Telegram bot token
 TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
@@ -27,10 +27,10 @@ def save_chat_id(chat_id):
             f.write(str(chat_id) + '\n')
 
 # Handler for incoming messages to register users
-def handle_message(update, context):
+async def handle_message(update, context):
     chat_id = str(update.message.chat_id)
     save_chat_id(chat_id)
-    update.message.reply_text("Thanks! You'll now receive deals.")
+    await update.message.reply_text("Thanks! You'll now receive deals.")
 
 # Fetch deals from API
 def get_discounted_games():
@@ -81,24 +81,21 @@ def broadcast_deal():
         except Exception as e:
             print(f"Failed to send to {chat_id}: {e}")
 
-def main():
-    # Initialize updater and dispatcher
-    updater = Updater(TELEGRAM_TOKEN)
-    dispatcher = updater.dispatcher
+async def main():
+    # Build the application
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    # Add message handler with updated filters
-    dispatcher.add_handler(
+    # Add message handler with filters
+    app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
 
-    # Start polling
-    updater.start_polling()
-
-    # You can call broadcast_deal() whenever you want to send deals
-    # For example, after some interval, or manually:
-    # broadcast_deal()
-
-    updater.idle()
+    # Run the bot
+    await app.start()
+    print("Bot started. Press Ctrl+C to stop.")
+    await app.updater.start_polling()
+    await app.idle()
 
 if __name__ == '__main__':
-    main()
+    import asyncio
+    asyncio.run(main())
