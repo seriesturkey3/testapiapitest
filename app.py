@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -10,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Replace this with your actual Telegram bot token
-TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN_HERE'
+TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
 # Store game states
 games = {}
@@ -57,28 +58,28 @@ def create_board_keyboard(board):
     return InlineKeyboardMarkup(keyboard)
 
 # Command handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: 'ContextTypes.DEFAULT_TYPE'):
     user_id = update.effective_user.id
     scores.setdefault(user_id, {'X':0, 'O':0})
     await update.message.reply_text(
         "Welcome to Tic Tac Toe!\nUse /newgame to start a new game.\nUse /score to see your scores."
     )
 
-async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def score(update: Update, context: 'ContextTypes.DEFAULT_TYPE'):
     user_id = update.effective_user.id
     user_score = scores.get(user_id, {'X':0, 'O':0})
     await update.message.reply_text(
         f"Your Scores:\nX: {user_score['X']}\nO: {user_score['O']}"
     )
 
-async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def newgame(update: Update, context: 'ContextTypes.DEFAULT_TYPE'):
     user_id = update.effective_user.id
 
     # Find a game waiting for a second player
     waiting_game = None
-    for gid, game in games.items():
-        if game['status'] == 'waiting':
-            waiting_game = game
+    for g in games.values():
+        if g['status'] == 'waiting':
+            waiting_game = g
             break
 
     if waiting_game:
@@ -89,14 +90,20 @@ async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE):
         waiting_game['board'] = create_board()
         waiting_game['current_turn'] = waiting_game['player_x']
         # Notify players
-        await context.bot.send_message(
-            waiting_game['player_x'],
-            "Second player joined! The game begins.\nYou are 'X'. Your turn.",
-        )
-        await context.bot.send_message(
-            user_id,
-            "You joined the game as 'O'. The game begins.\nWaiting for 'X' to move.",
-        )
+        try:
+            await context.bot.send_message(
+                waiting_game['player_x'],
+                "Second player joined! The game begins.\nYou are 'X'. Your turn."
+            )
+        except:
+            pass
+        try:
+            await context.bot.send_message(
+                user_id,
+                "You joined the game as 'O'. The game begins.\nWaiting for 'X' to move."
+            )
+        except:
+            pass
         # Send initial board
         await send_board(update, context, waiting_game)
     else:
@@ -122,7 +129,7 @@ async def send_board(update, context, game):
         reply_markup=keyboard
     )
 
-async def button(update, context):
+async def button(update: 'Update', context: 'ContextTypes.DEFAULT_TYPE'):
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
@@ -193,14 +200,15 @@ async def button(update, context):
 
     await query.answer()
 
-# Run the bot
-if __name__ == '__main__':
+# Main async function to run the bot
+async def main():
     application = ApplicationBuilder().token(TOKEN).build()
-
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('score', score))
     application.add_handler(CommandHandler('newgame', newgame))
     application.add_handler(CallbackQueryHandler(button))
-
     print("Bot is running...")
-    application.run_polling()
+    await application.run_polling()
+
+if __name__ == '__main__':
+    asyncio.run(main())
