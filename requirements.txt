@@ -1,5 +1,3 @@
-python-telegram-bot>=13.0
-requests>=2.25.0
-asyncio
-aiohttp
-aiogram
+python-telegram-bot
+Flask
+requests
