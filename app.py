@@ -1,4 +1,3 @@
-import asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler
 import aiohttp
 
@@ -17,10 +16,10 @@ async def ip_command(update, context):
         ip = f"Error: {e}"
     await update.message.reply_text(f"Your public IP address is: {ip}")
 
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler('ip', ip_command))
-    await app.run_polling()
+def main():
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(CommandHandler('ip', ip_command))
+    application.run_polling()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
