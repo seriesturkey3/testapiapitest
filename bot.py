@@ -1,226 +1,206 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
-import os
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-
 logger = logging.getLogger(__name__)
 
-# Replace with your actual bot token
-TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
+# Replace this with your actual Telegram bot token
+TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN_HERE'
 
-# Data structures to hold game states
-games = {}  # key: chat_id, value: game data
+# Store game states
+games = {}
+scores = {}
 
 # Helper functions
+def create_board():
+    return [' ' for _ in range(9)]
 
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        "Welcome to Tic Tac Toe!\n"
-        "Use /challenge @username to start a game."
-    )
+def check_winner(board):
+    win_conditions = [
+        [0,1,2], [3,4,5], [6,7,8],  # rows
+        [0,3,6], [1,4,7], [2,5,8],  # columns
+        [0,4,8], [2,4,6]            # diagonals
+    ]
+    for condition in win_conditions:
+        a,b,c = condition
+        if board[a] == board[b] == board[c] != ' ':
+            return board[a]
+    if ' ' not in board:
+        return 'Draw'
+    return None
 
-def challenge(update: Update, context: CallbackContext):
-    if len(context.args) != 1:
-        update.message.reply_text("Usage: /challenge @username")
-        return
+def get_player_symbol(user_id, game):
+    if user_id == game['player_x']:
+        return 'X'
+    elif user_id == game['player_o']:
+        return 'O'
+    return None
 
-    challenger = update.message.from_user
-    challenged_username = context.args[0]
+def switch_turn(game):
+    game['current_turn'] = game['player_o'] if game['current_turn'] == game['player_x'] else game['player_x']
 
-    # Remove '@' if present
-    if challenged_username.startswith('@'):
-        challenged_username = challenged_username[1:]
-
-    # Search for the challenged user in chat members
-    # Note: Telegram Bot API doesn't allow bots to get user info by username directly
-    # So this approach relies on the challenged user being active and having started the bot
-    # Alternatively, you can use inline queries or user IDs
-
-    # For simplicity, we'll just send a message to the challenged user asking to accept
-    message = (
-        f"{challenger.first_name} has challenged you to a game of Tic Tac Toe!\n"
-        f"To accept, reply with /accept {challenger.id}"
-    )
-
-    # Send challenge message
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=message
-    )
-
-    # Store the challenge info
-    # We'll keep a simple mapping: challenged_user_id -> challenger_id
-    # For simplicity, just store in a global dict
-    # In production, you'd want a more robust system
-
-    # For this example, we won't enforce username matching, just store challenger info
-    # But to keep it simple, we can skip this and handle challenge directly
-
-def accept(update: Update, context: CallbackContext):
-    user = update.message.from_user
-    args = context.args
-
-    if len(args) != 1:
-        update.message.reply_text("Usage: /accept challenger_user_id")
-        return
-
-    challenger_id = int(args[0])
-    challenger_user = None
-
-    # Note: In real implementation, you'd verify challenger_id corresponds to an actual user
-    # For this example, we'll just proceed
-
-    # Generate a chat_id for the game
-    chat_id = f"{user.id}_{challenger_id}"
-
-    # Initialize game board
-    game_board = [' ' for _ in range(9)]
-
-    # Save game state
-    games[chat_id] = {
-        'players': {
-            'X': user.id,
-            'O': challenger_id
-        },
-        'board': game_board,
-        'turn': 'X'  # X starts
-    }
-
-    # Send initial game board
-    send_board(update, chat_id)
-
-def send_board(update: Update, chat_id):
-    game = games.get(chat_id)
-    if not game:
-        return
-
-    board = game['board']
-    turn = game['turn']
-    player_x = game['players']['X']
-    player_o = game['players']['O']
-
-    # Create inline keyboard
+def create_board_keyboard(board):
     keyboard = []
     for i in range(0, 9, 3):
         row = []
         for j in range(3):
             idx = i + j
-            cell = board[idx]
-            text = cell if cell != ' ' else str(idx + 1)
+            text = board[idx] if board[idx] != ' ' else ' '
             callback_data = str(idx)
-            row.append(InlineKeyboardButton(text, callback_data=callback_data))
+            row.append(InlineKeyboardButton(text=text, callback_data=callback_data))
         keyboard.append(row)
+    return InlineKeyboardMarkup(keyboard)
 
-    message_text = (
-        f"Tic Tac Toe!\n"
-        f"Player X: {player_x} | Player O: {player_o}\n"
-        f"Current turn: {'X' if turn=='X' else 'O'}"
+# Command handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    scores.setdefault(user_id, {'X':0, 'O':0})
+    await update.message.reply_text(
+        "Welcome to Tic Tac Toe!\nUse /newgame to start a new game.\nUse /score to see your scores."
     )
 
-    # Send or edit message
-    # For simplicity, we'll send a new message each time
-    update.effective_chat.send_message(
-        text=message_text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_score = scores.get(user_id, {'X':0, 'O':0})
+    await update.message.reply_text(
+        f"Your Scores:\nX: {user_score['X']}\nO: {user_score['O']}"
     )
 
-def button(update: Update, context: CallbackContext):
-    query = update.callback_query
-    user = query.from_user
-    data = query.data  # index of cell clicked
+async def newgame(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
 
-    # Find the game this move belongs to
-    # Since multiple games can be ongoing, identify by chat_id or by user IDs
-    # For simplicity, assume each game is in a separate chat
-
-    # We'll need to find the game involving this user
-    # For this example, we'll iterate over games to find one where user is a player
-
-    chat_id = None
+    # Find a game waiting for a second player
+    waiting_game = None
     for gid, game in games.items():
-        players = game['players']
-        if user.id in players.values():
-            chat_id = gid
+        if game['status'] == 'waiting':
+            waiting_game = game
             break
 
-    if not chat_id:
-        query.answer("You're not in a game.")
-        return
-
-    game = games[chat_id]
-    board = game['board']
-    turn = game['turn']
-    players = game['players']
-
-    # Check if it's this user's turn
-    if (turn == 'X' and users_match(user.id, players['X'])) or \
-       (turn == 'O' and users_match(user.id, players['O'])):
-        pass
+    if waiting_game:
+        # Assign second player
+        game_id = waiting_game['id']
+        waiting_game['player_o'] = user_id
+        waiting_game['status'] = 'playing'
+        waiting_game['board'] = create_board()
+        waiting_game['current_turn'] = waiting_game['player_x']
+        # Notify players
+        await context.bot.send_message(
+            waiting_game['player_x'],
+            "Second player joined! The game begins.\nYou are 'X'. Your turn.",
+        )
+        await context.bot.send_message(
+            user_id,
+            "You joined the game as 'O'. The game begins.\nWaiting for 'X' to move.",
+        )
+        # Send initial board
+        await send_board(update, context, waiting_game)
     else:
-        query.answer("It's not your turn.")
+        # Create a new game waiting for a second player
+        game_id = len(games) + 1
+        games[game_id] = {
+            'id': game_id,
+            'player_x': user_id,
+            'player_o': None,
+            'board': create_board(),
+            'current_turn': user_id,
+            'status': 'waiting'
+        }
+        await update.message.reply_text("Waiting for an opponent to join. Send /newgame again to find a game.")
+
+async def send_board(update, context, game):
+    keyboard = create_board_keyboard(game['board'])
+    current_player_id = game['current_turn']
+    # Send board message
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"Current turn: {'X' if get_player_symbol(current_player_id, game)=='X' else 'O'}",
+        reply_markup=keyboard
+    )
+
+async def button(update, context):
+    query = update.callback_query
+    user_id = query.from_user.id
+    data = query.data
+    game = None
+
+    # Find the game involving this user and is active
+    for g in games.values():
+        if g['status'] == 'playing' and (g['player_x'] == user_id or g['player_o'] == user_id):
+            game = g
+            break
+
+    if not game:
+        await query.answer("You're not in an active game.")
         return
 
-    index = int(data)
-
-    # Check if cell is empty
-    if board[index] != ' ':
-        query.answer("Cell already taken.")
+    # Check if it's this player's turn
+    if game['current_turn'] != user_id:
+        await query.answer("It's not your turn.")
         return
 
-    # Make the move
-    board[index] = turn
-
-    # Check for win or draw
-    if check_winner(board, turn):
-        # Announce winner
-        message = f"Player {turn} wins!"
-        # Highlight the game over
-        update.effective_chat.send_message(text=message)
-        # Remove game
-        del games[chat_id]
-        return
-    elif ' ' not in board:
-        # Draw
-        update.effective_chat.send_message(text="It's a draw!")
-        del games[chat_id]
+    idx = int(data)
+    if game['board'][idx] != ' ':
+        await query.answer("Cell already taken.")
         return
 
-    # Switch turn
-    game['turn'] = 'O' if turn == 'X' else 'X'
+    symbol = get_player_symbol(user_id, game)
+    game['board'][idx] = symbol
 
-    # Update board
-    send_board(update, chat_id)
+    # Check for winner
+    winner = check_winner(game['board'])
+    if winner:
+        if winner == 'Draw':
+            msg = "It's a draw!"
+        else:
+            msg = f"Player '{winner}' wins!"
+            # Update scores
+            for uid in [game['player_x'], game['player_o']]:
+                scores.setdefault(uid, {'X':0,'O':0})
+                if winner == 'X':
+                    scores[uid]['X'] += 1
+                elif winner == 'O':
+                    scores[uid]['O'] += 1
 
-def users_match(user_id, player_id):
-    return user_id == player_id
+        # Send result to both players
+        for uid in [game['player_x'], game['player_o']]:
+            try:
+                await context.bot.send_message(
+                    chat_id=uid,
+                    text=msg + "\nUse /newgame to play again or /score to see your scores."
+                )
+            except:
+                pass
+        game['status'] = 'ended'
+        return
+    else:
+        # Switch turn
+        switch_turn(game)
+        # Update both players
+        for uid in [game['player_x'], game['player_o']]:
+            try:
+                await context.bot.send_message(
+                    chat_id=uid,
+                    text="Your turn." if game['current_turn'] == uid else "Waiting for opponent...",
+                    reply_markup=create_board_keyboard(game['board'])
+                )
+            except:
+                pass
 
-def check_winner(board, mark):
-    # Winning combinations
-    wins = [
-        [0,1,2], [3,4,5], [6,7,8],  # rows
-        [0,3,6], [1,4,7], [2,5,8],  # columns
-        [0,4,8], [2,4,6]            # diagonals
-    ]
-    return any(all(board[i] == mark for i in combo) for combo in wins)
+    await query.answer()
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-
-    # Handlers
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("challenge", challenge))
-    dispatcher.add_handler(CommandHandler("accept", accept))
-    dispatcher.add_handler(CallbackQueryHandler(button))
-
-    updater.start_polling()
-    updater.idle()
-
+# Run the bot
 if __name__ == '__main__':
-    main()
+    application = ApplicationBuilder().token(TOKEN).build()
+
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('score', score))
+    application.add_handler(CommandHandler('newgame', newgame))
+    application.add_handler(CallbackQueryHandler(button))
+
+    print("Bot is running...")
+    application.run_polling()
