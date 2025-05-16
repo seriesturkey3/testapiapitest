@@ -1,36 +1,31 @@
 import streamlit as st
-import streamlit.components.v1 as components
-import uuid
+import requests
 
-# Generate a unique game ID for session management
-if 'game_id' not in st.session_state:
-    st.session_state['game_id'] = str(uuid.uuid4())
+st.title("Proxy Checker")
 
-st.title("Tic Tac Toe")
+# Input field for proxy address
+proxy_input = st.text_input("Enter proxy (ip:port):", "")
 
-# Embed Telegram Web App SDK
-components.html(
-    """
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-
-        // Function to send message back to Telegram
-        function sendMessage(data) {
-            tg.sendData(JSON.stringify(data));
+# Button to trigger the check
+if st.button("Check Proxy"):
+    # Basic validation of input
+    if ':' not in proxy_input:
+        st.error("Please enter the proxy in the correct format: ip:port")
+    else:
+        ip, port = proxy_input.split(':', 1)
+        proxies = {
+            "http": f"http://{ip}:{port}",
+            "https": f"http://{ip}:{port}"
         }
+        test_url = "http://httpbin.org/ip"
 
-        // Example: Send game start info
-        sendMessage({type: "start", message: "Game started", game_id: "%s"});
-
-        // You can add your game logic here
-        // For example, handle game state, send updates, etc.
-    </script>
-    """ % st.session_state['game_id'],
-    height=0
-)
-
-# Display instructions or game UI
-st.write("This is a placeholder for your Tic Tac Toe game UI.")
-st.write("Implement your game logic here.")
+        with st.spinner("Checking proxy..."):
+            try:
+                response = requests.get(test_url, proxies=proxies, timeout=5)
+                if response.status_code == 200:
+                    origin_ip = response.json().get('origin', 'Unknown')
+                    st.success(f"✅ Proxy {proxy_input} is working!\nYour IP as seen by the test server: {origin_ip}")
+                else:
+                    st.error(f"❌ Proxy {proxy_input} returned status code {response.status_code}. Might not be working.")
+            except requests.RequestException as e:
+                st.error(f"❌ Proxy {proxy_input} is not working. Error: {e}")
