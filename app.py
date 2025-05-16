@@ -1,11 +1,11 @@
-import asyncio
 import requests
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler
 
+# Your Telegram Bot Token
 TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
 def get_public_ip():
+    """Fetch the current public IP address."""
     try:
         response = requests.get('https://api.ipify.org?format=json')
         if response.status_code == 200:
@@ -15,17 +15,19 @@ def get_public_ip():
     except Exception as e:
         return f"Error: {e}"
 
-async def ip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def ip_command(update, context):
+    """Handler for /ip command."""
     ip = get_public_ip()
     await update.message.reply_text(f"Your public IP address is: {ip}")
 
-async def main():
-    # Initialize the bot application
+def main():
+    """Start the bot."""
+    # Initialize the application
     app = ApplicationBuilder().token(TOKEN).build()
+    # Add command handler for /ip
     app.add_handler(CommandHandler('ip', ip_command))
-    
-    # Run polling asynchronously
-    await app.run_polling()
+    # Run the bot - this is blocking and handles signals properly
+    app.run_polling()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
