@@ -10,39 +10,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Replace with your bot's token
+# Замените на ваш токен
 TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
-# Store game states: { chat_id: game_data }
+# Храним игры по chat_id
 games = {}
 
 def create_board():
-    """Create an empty 3x3 game board."""
     return [[' ' for _ in range(3)] for _ in range(3)]
 
 def board_to_markup(board):
-    """Convert the game board into inline keyboard markup."""
-    keyboard = []
+    markup = []
     for i in range(3):
         row = []
         for j in range(3):
             cell = board[i][j]
             text = cell if cell != ' ' else ' '
-            callback_data = f'{i},{j}'
-            row.append(InlineKeyboardButton(text, callback_data=callback_data))
-        keyboard.append(row)
-    return InlineKeyboardMarkup(keyboard)
+            row.append(InlineKeyboardButton(text, callback_data=f'{i},{j}'))
+        markup.append(row)
+    return InlineKeyboardMarkup(markup)
 
 def check_winner(board):
-    """Check if there is a winner. Return 'X', 'O' or None."""
     lines = []
 
-    # Rows and columns
+    # Проверка строк и столбцов
     for i in range(3):
-        lines.append(board[i])  # row
-        lines.append([board[0][i], board[1][i], board[2][i]])  # column
+        lines.append(board[i])  # строка
+        lines.append([board[0][i], board[1][i], board[2][i]])  # столбец
 
-    # Diagonals
+    # Диагонали
     lines.append([board[0][0], board[1][1], board[2][2]])
     lines.append([board[0][2], board[1][1], board[2][0]])
 
@@ -52,26 +48,17 @@ def check_winner(board):
     return None
 
 def is_draw(board):
-    """Determine if the game is a draw."""
-    for row in board:
-        if ' ' in row:
-            return False
-    return True
+    return all(cell != ' ' for row in board for cell in row)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start a new game."""
+async def start(update: Update, context):
     chat_id = update.effective_chat.id
-    games[chat_id] = {
-        'board': create_board(),
-        'current_player': 'X'  # User is X
-    }
+    games[chat_id] = {'board': create_board()}
     await update.message.reply_text(
         "Let's play Tic-Tac-Toe!\nYou are 'X'. Make your move.",
         reply_markup=board_to_markup(games[chat_id]['board'])
     )
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle button presses for moves."""
+async def button(update, context):
     query = update.callback_query
     chat_id = query.message.chat_id
 
@@ -82,66 +69,62 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     game = games[chat_id]
     board = game['board']
 
-    # Parse move
     i, j = map(int, query.data.split(','))
-    # Check if cell is empty
     if board[i][j] != ' ':
         await query.answer("Cell already taken!")
         return
 
-    # Player move
+    # Ход пользователя
     board[i][j] = 'X'
 
-    # Check if player wins
+    # Проверка победы
     winner = check_winner(board)
     if winner:
         await query.edit_message_text(f"🎉 You win!", reply_markup=None)
         del games[chat_id]
         return
 
-    # Check for draw
+    # Проверка ничьей
     if is_draw(board):
         await query.edit_message_text("It's a draw!", reply_markup=None)
         del games[chat_id]
         return
 
-    # Bot's move ('O') - simple random move
+    # Ход бота
     empty_cells = [(x, y) for x in range(3) for y in range(3) if board[x][y] == ' ']
     if empty_cells:
         x, y = random.choice(empty_cells)
         board[x][y] = 'O'
-        # Check if bot wins
+        # Проверка победы бота
         winner = check_winner(board)
         if winner:
             await query.edit_message_text(f"🤖 Bot wins!", reply_markup=None)
             del games[chat_id]
             return
-        # Check for draw
+        # Проверка ничьей
         if is_draw(board):
             await query.edit_message_text("It's a draw!", reply_markup=None)
             del games[chat_id]
             return
 
-    # Continue game
+    # Продолжение
     await query.edit_message_text("Your turn!", reply_markup=board_to_markup(board))
     await query.answer()
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send a help message."""
+async def help_command(update, context):
     await update.message.reply_text(
-        "/start - Start a new Tic-Tac-Toe game\n"
-        "Make your move by pressing the buttons."
+        "/start - Начать новую игру\n"
+        "Используйте кнопки, чтобы сделать ход."
     )
 
 def main():
-    """Run the bot."""
     application = ApplicationBuilder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CallbackQueryHandler(button))
 
-    print("Bot is running...")
+    # Запуск бота
     application.run_polling()
 
 if __name__ == '__main__':
