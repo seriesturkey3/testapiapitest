@@ -8,6 +8,7 @@ TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
 # File to store chat IDs
 CHAT_IDS_FILE = 'chat_ids.txt'
 
+# Initialize bot instance
 bot = Bot(token=TELEGRAM_TOKEN)
 
 # Load chat IDs from file
@@ -81,21 +82,18 @@ def broadcast_deal():
         except Exception as e:
             print(f"Failed to send to {chat_id}: {e}")
 
-async def main():
+# Main function to run the bot
+def main():
     # Build the application
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    # Add message handler with filters
+    # Register message handler
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
 
     # Run the bot
-    await app.start()
-    print("Bot started. Press Ctrl+C to stop.")
-    await app.updater.start_polling()
-    await app.idle()
+    app.run_polling()
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    main()
