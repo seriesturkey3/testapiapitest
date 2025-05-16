@@ -6,7 +6,7 @@ import requests
 import os
 
 # --- Configuration ---
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')  # Set your bot token as environment variable
+TELEGRAM_TOKEN = os.getenv('7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I')  # Set your bot token as environment variable
 API_PORT = int(os.getenv('API_PORT', 5000))  # Port for Flask API
 
 # --- Proxy Checking Function ---
