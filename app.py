@@ -11,7 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Replace with your bot's token
-TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN_HERE'
+TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
 # Store game states: { chat_id: game_data }
 games = {}
