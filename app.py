@@ -1,142 +1,119 @@
 import requests
-import asyncio
-from telegram import Bot, Update
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Your Telegram bot token
-TELEGRAM_TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
+# Your Steam Storefront API key
+STEAM_API_KEY = 'YOUR_STEAM_API_KEY'
 
-# Files for storing chat IDs and notified deals
-CHAT_IDS_FILE = 'chat_ids.txt'
-NOTIFIED_DEALS_FILE = 'notified_deals.txt'
+# Your Telegram Bot Token
+TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
 
-bot = Bot(token=TELEGRAM_TOKEN)
-
-# Load chat IDs from file
-def load_chat_ids():
-    try:
-        with open(CHAT_IDS_FILE, 'r') as f:
-            ids = [line.strip() for line in f if line.strip().isdigit()]
-        return ids
-    except FileNotFoundError:
-        return []
-
-# Save a new chat ID
-def save_chat_id(chat_id):
-    chat_ids = load_chat_ids()
-    if chat_id not in chat_ids:
-        with open(CHAT_IDS_FILE, 'a') as f:
-            f.write(str(chat_id) + '\n')
-
-# Load notified deals
-def load_notified_deals():
-    try:
-        with open(NOTIFIED_DEALS_FILE, 'r') as f:
-            deals = {line.strip() for line in f}
-        return deals
-    except FileNotFoundError:
-        return set()
-
-# Save a deal ID to notified list
-def save_notified_deal(deal_id):
-    with open(NOTIFIED_DEALS_FILE, 'a') as f:
-        f.write(str(deal_id) + '\n')
-
-# Handle incoming messages (e.g., new user registration)
-async def handle_message(update: Update, context):
-    chat_id = str(update.message.chat_id)
-    save_chat_id(chat_id)
-    await update.message.reply_text("Thanks! You'll now receive deals.")
-
-# Command to trigger immediate fetch
-async def fetch_now(update: Update, context):
-    await update.message.reply_text("Fetching latest deals now...")
-    check_and_notify()
-    await update.message.reply_text("Done!")
-
-# Fetch deals from API
+# Function to fetch discounted games
 def get_discounted_games():
-    url = 'https://www.cheapshark.com/api/1.0/deals'
-    params = {
-        'storeID': 1,
-        'upperPrice': 60,
-        'sortBy': 'DealRating',
-        'desc': 1,
-        'pageSize': 50
-    }
+    url = (
+        "https://store.steampowered.com/api/featured/?cc=us&l=english&v=1"
+    )
     try:
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            print(f"Error fetching deals: {response.status_code}")
-            return []
-        return response.json()
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        deals = []
+
+        if 'specials' in data:
+            specials = data['specials']
+            for game in specials:
+                deals.append(game)
+        return deals
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error fetching deals: {e}")
         return []
 
-# Check for new deals and notify users
-def check_and_notify():
-    chat_ids = load_chat_ids()
-    if not chat_ids:
-        print("No users registered.")
-        return
+# Function to check if "The Forest" is on discount
+def check_the_forest_deal():
+    deals = get_discounted_games()
+    for deal in deals:
+        # Deal structure may vary; adapt as needed
+        title = deal.get('title', '')
+        sale_price = deal.get('salePrice', '')
+        normal_price = deal.get('normalPrice', '')
+        steam_app_id = deal.get('steamAppID', '')
 
+        if 'The Forest' in title:
+            try:
+                sale_price_float = float(sale_price)
+            except:
+                sale_price_float = 0.0
+            try:
+                normal_price_float = float(normal_price)
+            except:
+                normal_price_float = 0.0
+
+            if sale_price_float < normal_price_float:
+                return True, {
+                    'title': title,
+                    'salePrice': sale_price,
+                    'steamAppID': steam_app_id
+                }
+            else:
+                return False, {
+                    'title': title,
+                    'salePrice': sale_price,
+                    'steamAppID': steam_app_id
+                }
+    return False, None
+
+# Handler for /start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hello! Use /discount to see current deals and /name to check The Forest deal.")
+
+# Handler for /discount command
+async def discount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     deals = get_discounted_games()
     if not deals:
-        print("No deals found.")
+        await update.message.reply_text("No deals found at the moment.")
         return
+    message = "Current Deals:\n\n"
+    for deal in deals:
+        title = deal.get('title', 'No title')
+        sale_price = deal.get('salePrice', 'N/A')
+        normal_price = deal.get('normalPrice', 'N/A')
+        link = f"https://store.steampowered.com/app/{deal.get('steamAppID', '')}"
+        message += f"🎮 {title}\nPrice: ${sale_price} (was ${normal_price})\nLink: {link}\n\n"
+    await update.message.reply_text(message)
 
-    notified_deals = load_notified_deals()
+# Handler for /name command
+async def handle_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    discounted, deal = check_the_forest_deal()
+    if deal:
+        title = deal.get('title', 'The Forest')
+        sale_price = deal.get('salePrice', 'N/A')
+        steam_app_id = deal.get('steamAppID', '')
+        if discounted:
+            message = (
+                f"🎉 The Forest is currently on discount!\n"
+                f"Title: {title}\n"
+                f"Price: ${sale_price}\n"
+                f"Link: https://store.steampowered.com/app/{steam_app_id}"
+            )
+        else:
+            message = (
+                f"The Forest is currently not on discount.\n"
+                f"Title: {title}\n"
+                f"Price: ${sale_price}\n"
+                f"Link: https://store.steampowered.com/app/{steam_app_id}"
+            )
+    else:
+        message = "The Forest is not currently available in the deals."
+    await update.message.reply_text(message)
 
-    # Find new deals
-    new_deals = [deal for deal in deals if deal['dealID'] not in notified_deals]
-
-    if not new_deals:
-        print("No new deals to notify.")
-        return
-
-    for deal in new_deals:
-        deal_id = deal['dealID']
-        save_notified_deal(deal_id)
-
-        message = (
-            f"🔥 **Steam Deal!** 🔥\n"
-            f"Title: {deal['title']}\n"
-            f"Price: ${deal['salePrice']}\n"
-            f"Discount: {deal['savings']}%\n"
-            f"Link: https://store.steampowered.com/app/{deal['steamAppID']}"
-        )
-
-        for chat_id in chat_ids:
-            try:
-                bot.send_message(int(chat_id), message, parse_mode='Markdown')
-            except Exception as e:
-                print(f"Failed to send to {chat_id}: {e}")
-
-# Periodic task to check deals every 30 minutes
-async def periodic_check():
-    while True:
-        print("Checking for new deals...")
-        check_and_notify()
-        await asyncio.sleep(1800)  # 30 minutes
-
-# Main function
+# Main function to run the bot
 def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Register handlers
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
-    app.add_handler(
-        CommandHandler('fetchnow', fetch_now)
-    )
-
-    # Schedule periodic check after startup
-    async def on_start(application):
-        asyncio.create_task(periodic_check())
-
-    app.post_init = on_start
+    # Register command handlers
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('discount', discount))
+    app.add_handler(CommandHandler('name', handle_name))
 
     # Run the bot
     app.run_polling()
