@@ -1,18 +1,18 @@
 import requests
 import asyncio
-import random
-from telegram import Bot
+from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 
 # Your Telegram bot token
 TELEGRAM_TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
+
 # Files for storing chat IDs and notified deals
 CHAT_IDS_FILE = 'chat_ids.txt'
 NOTIFIED_DEALS_FILE = 'notified_deals.txt'
 
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# Load chat IDs
+# Load chat IDs from file
 def load_chat_ids():
     try:
         with open(CHAT_IDS_FILE, 'r') as f:
@@ -21,7 +21,7 @@ def load_chat_ids():
     except FileNotFoundError:
         return []
 
-# Save chat ID
+# Save a new chat ID
 def save_chat_id(chat_id):
     chat_ids = load_chat_ids()
     if chat_id not in chat_ids:
@@ -37,19 +37,19 @@ def load_notified_deals():
     except FileNotFoundError:
         return set()
 
-# Save a deal ID as notified
+# Save a deal ID to notified list
 def save_notified_deal(deal_id):
     with open(NOTIFIED_DEALS_FILE, 'a') as f:
         f.write(str(deal_id) + '\n')
 
-# Telegram message handler for new users
-async def handle_message(update, context):
+# Handle incoming messages (e.g., new user registration)
+async def handle_message(update: Update, context):
     chat_id = str(update.message.chat_id)
     save_chat_id(chat_id)
     await update.message.reply_text("Thanks! You'll now receive deals.")
 
-# Command handler for /fetchnow
-async def fetch_now(update, context):
+# Command to trigger immediate fetch
+async def fetch_now(update: Update, context):
     await update.message.reply_text("Fetching latest deals now...")
     check_and_notify()
     await update.message.reply_text("Done!")
@@ -74,7 +74,7 @@ def get_discounted_games():
         print(f"Error: {e}")
         return []
 
-# Check for new deals and notify
+# Check for new deals and notify users
 def check_and_notify():
     chat_ids = load_chat_ids()
     if not chat_ids:
@@ -88,14 +88,13 @@ def check_and_notify():
 
     notified_deals = load_notified_deals()
 
-    # Find new deals which have not been notified before
+    # Find new deals
     new_deals = [deal for deal in deals if deal['dealID'] not in notified_deals]
 
     if not new_deals:
         print("No new deals to notify.")
         return
 
-    # Send each new deal to all chat IDs
     for deal in new_deals:
         deal_id = deal['dealID']
         save_notified_deal(deal_id)
@@ -114,40 +113,33 @@ def check_and_notify():
             except Exception as e:
                 print(f"Failed to send to {chat_id}: {e}")
 
-# Periodic task: check deals every 30 minutes
+# Periodic task to check deals every 30 minutes
 async def periodic_check():
     while True:
         print("Checking for new deals...")
         check_and_notify()
-        await asyncio.sleep(1800)  # wait for 30 minutes
+        await asyncio.sleep(1800)  # 30 minutes
 
-# Main function to run the bot and schedule periodic checks
+# Main function
 def main():
-    async def run():
-        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-        # Initialize the app
-        await app.initialize()
+    # Register handlers
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
+    app.add_handler(
+        CommandHandler('fetchnow', fetch_now)
+    )
 
-        # Register handlers
-        app.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-        )
-        app.add_handler(
-            CommandHandler('fetchnow', fetch_now)
-        )
-
-        # Start the bot
-        await app.start()
-
-        # Run periodic check in background
+    # Schedule periodic check after startup
+    async def on_start():
         asyncio.create_task(periodic_check())
 
-        # Keep the bot running
-        await app.updater.start_polling()
-        await app.updater.idle()
+    app.post_init = on_start
 
-    asyncio.run(run())
+    # Run the bot
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
