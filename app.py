@@ -1,15 +1,14 @@
-import threading
-import asyncio
+import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import requests
 
+# Replace with your actual bot token
 TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! I'm your proxy checker bot.")
+    await update.message.reply_text("Hello! Send /check ip:port to test a proxy.")
 
-async def check_proxy(proxy):
+async def check_proxy(proxy: str):
     if ':' not in proxy:
         return "Invalid format. Use ip:port."
     ip, port = proxy.split(':', 1)
@@ -37,17 +36,10 @@ async def check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(result)
 
 def main():
-    # Build and run the bot
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("check", check))
-
-    # Run the bot in a separate thread to avoid blocking
-    def run():
-        application.run_polling()
-
-    threading.Thread(target=run).start()
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("check", check))
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
