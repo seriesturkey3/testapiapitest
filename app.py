@@ -4,7 +4,7 @@ from telegram import Bot
 from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
 # Your Telegram bot token
-TELEGRAM_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+TELEGRAM_TOKEN = '7340903364:AAET-jHiIsLGmdyz_UAEfFGmpwbzWNqRt7I'
 # File to store chat IDs
 CHAT_IDS_FILE = 'chat_ids.txt'
 
